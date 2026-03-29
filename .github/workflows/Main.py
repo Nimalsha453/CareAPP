@@ -14,15 +14,9 @@ try:
 except: pass
 
 try:
-    import pyttsx3
-except: pass
-
-try:
     from plyer import notification
-except: pass
-
-try:
-    from PIL import Image as PILImage
+    from plyer import tts
+    from plyer import call
 except: pass
 
 # Kivy Imports
@@ -39,7 +33,7 @@ from kivy.uix.camera import Camera
 from kivy.utils import platform
 
 CONFIG_FILE = "user_session.json"
-TEMP_IMAGE_PATH = "temp_scan.jpg"
+TEMP_IMAGE_PATH = "temp_scan.png" # Changed to PNG for pure Kivy texture saving
 
 class RoundedButton(Button):
     def __init__(self, **kwargs):
@@ -151,28 +145,20 @@ class PatientScreen(Screen):
 
     # VOICE LOGIC
     def speak(self, text):
+        # Native, safe cross-platform speech (Stops raw JNI crashing)
         def _speak():
-            if platform == 'android':
-                try:
-                    from jnius import autoclass
-                    Locale = autoclass('java.util.Locale')
-                    TextToSpeech = autoclass('android.speech.tts.TextToSpeech')
-                    app = App.get_running_app()
-                    if not hasattr(app, 'tts_engine'):
-                        context = autoclass('org.kivy.android.PythonActivity').mActivity
-                        app.tts_engine = TextToSpeech(context, None)
-                    app.tts_engine.setLanguage(Locale.US)
-                    app.tts_engine.speak(text, TextToSpeech.QUEUE_FLUSH, None, None)
-                except Exception as e:
-                    print("Android TTS error:", e)
-            else:
-                try:
-                    import pyttsx3, comtypes
-                    comtypes.CoInitialize() 
-                    engine = pyttsx3.init()
-                    engine.say(text)
-                    engine.runAndWait()
-                except Exception as e: print("PC TTS error:", e)
+            try:
+                tts.speak(text)
+            except Exception as e:
+                print("Plyer TTS error:", e)
+                if platform != 'android': # Polyfill for PC
+                    try:
+                        import pyttsx3, comtypes
+                        comtypes.CoInitialize() 
+                        engine = pyttsx3.init()
+                        engine.say(text)
+                        engine.runAndWait()
+                    except: pass
         threading.Thread(target=_speak, daemon=True).start()
 
     def start_voice_assistant(self, instance):
@@ -208,19 +194,13 @@ class PatientScreen(Screen):
 
     def trigger_emergency(self, instance=None):
         num = App.get_running_app().emergency_phone
-        if platform == 'android':
-            try:
-                from jnius import autoclass
-                PythonActivity = autoclass('org.kivy.android.PythonActivity')
-                Intent = autoclass('android.content.Intent')
-                Uri = autoclass('android.net.Uri')
-                intent = Intent(Intent.ACTION_DIAL)
-                intent.setData(Uri.parse(f"tel:{num}"))
-                PythonActivity.mActivity.startActivity(intent)
-            except Exception as e: print("Dialer error:", e)
-        else:
-            try: notification.notify(title="ALERT", message=f"Emergency alert sent to {num}")
-            except: pass
+        try:
+            # Replaced dangerous raw JNI calls with Kivy Plyer Native call
+            call.dial(num)
+        except Exception as e: print("Dialer error:", e)
+        try: 
+            notification.notify(title="ALERT", message=f"Emergency alert sent to {num}")
+        except: pass
 
 # --- CLIENT-SERVER SCANNER (NEW!) ---
 class ScannerScreen(Screen):
@@ -228,12 +208,13 @@ class ScannerScreen(Screen):
         super(ScannerScreen, self).__init__(**kwargs)
         self.layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
         
-        # User types their laptop IP here
         self.ip_input = TextInput(hint_text="Enter Laptop WiFi IP (e.g. 192.168.1.5)", size_hint_y=0.1, font_size=20, multiline=False)
         self.layout.add_widget(self.ip_input)
         
-        self.camera = Camera(resolution=(640, 480), play=False)
-        self.layout.add_widget(self.camera)
+        # We DELAY Camera Creation to avoid Android Permission Instant-Crash on Startup!
+        self.camera = None
+        self.cam_layout = BoxLayout(size_hint_y=0.75)
+        self.layout.add_widget(self.cam_layout)
         
         self.result_label = Label(text="Point Camera at Medicine & PRESS SCAN", font_size=20, size_hint_y=0.15, bold=True)
         self.layout.add_widget(self.result_label)
@@ -253,10 +234,18 @@ class ScannerScreen(Screen):
         self.add_widget(self.layout)
 
     def on_enter(self):
-        self.camera.play = True
+        if not self.camera:
+            self.camera = Camera(resolution=(640, 480), play=True)
+            self.cam_layout.add_widget(self.camera)
+        else:
+            self.camera.play = True
+            
+    def go_back(self, instance):
+        self.manager.current = 'patient'
             
     def on_leave(self):
-        self.camera.play = False
+        if self.camera:
+            self.camera.play = False
 
     def capture_and_predict(self, instance):
         ip = self.ip_input.text.strip()
@@ -271,13 +260,8 @@ class ScannerScreen(Screen):
                 self.result_label.text = "Camera not ready!"
                 return
             
-            size = texture.size
-            pixels = texture.pixels
-            
-            # Use PIL to convert camera frame to JPEG
-            pil_image = PILImage.frombytes(mode='RGBA', size=size, data=pixels)
-            pil_image = pil_image.convert('RGB')
-            pil_image.save(TEMP_IMAGE_PATH, format='JPEG', quality=85)
+            # Pure Kivy texture save! Eliminates PIL library bug on Android!
+            texture.save(TEMP_IMAGE_PATH, flipped=False)
             
             self.result_label.text = "Sending to Laptop for AI Analysis..."
             threading.Thread(target=self.send_to_server, args=(ip,), daemon=True).start()
@@ -292,7 +276,7 @@ class ScannerScreen(Screen):
         try:
             with open(TEMP_IMAGE_PATH, 'rb') as f:
                 # HTTP POST logic
-                files = {'image': ('scan.jpg', f, 'image/jpeg')}
+                files = {'image': ('scan.png', f, 'image/png')}
                 response = requests.post(url, files=files, timeout=8) # 8 seconds max wait
             
             if response.status_code == 200:
@@ -403,4 +387,3 @@ class CareApp(App):
 
 if __name__ == '__main__':
     CareApp().run()
-
