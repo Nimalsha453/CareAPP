@@ -8,8 +8,8 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: Build with Buildozer
-        
-        uses: Niklas-Scherer/buildozer-action@v1
+        # මෙහි අකුරු නිවැරදිව (Case-sensitive) තිබීම අත්‍යවශ්‍යයි
+        uses: Kivy/buildozer-action@master
         with:
-          buildozer_version: master
           workdir: .
+          buildozer_config: buildozer.spec
