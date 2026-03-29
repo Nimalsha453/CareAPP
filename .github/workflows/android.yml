@@ -32,3 +32,13 @@ jobs:
           pip install --upgrade pip
           # setuptools මගින් distutils ගැටලුව විසඳයි
           pip install buildozer cython kivy setuptools
+
+          - name: Build with Buildozer
+       run: |
+          buildozer android debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: package
+          path: bin/*.apk
