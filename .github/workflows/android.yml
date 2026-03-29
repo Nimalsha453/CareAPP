@@ -8,8 +8,8 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: Build with Buildozer
-        # මෙහි අගට තිබූ අමතර 'v' අකුර ඉවත් කර ඇත
-        uses: ArtemSerebrennikov/buildozer-action@v1
+        # මෙම Action එක වඩාත් ස්ථාවරයි
+        uses: Niklas-Scherer/buildozer-action@v1
         with:
-          workdir: .
           buildozer_version: master
+          workdir: .
