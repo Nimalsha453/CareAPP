@@ -8,7 +8,7 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: Build with Buildozer
-        uses: ArtemSerebrennkov/buildozer-action@v1
+        uses: ArtemSerebrennkovv/buildozer-action@v1
         with:
           workdir: .
           buildozer_version: master
