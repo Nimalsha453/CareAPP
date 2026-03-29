@@ -3,19 +3,9 @@ on: [push]
 
 jobs:
   build:
-    runs-on: ubuntu-22.04  # ස්ථාවර Version එකක් භාවිතා කිරීම
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.10' # වඩාත් ගැලපෙන Python version එක
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential libffi-dev python3-dev libltdl-dev
 
       - name: Build with Buildozer
         uses: ArtemSerebrennkov/buildozer-action@v1
