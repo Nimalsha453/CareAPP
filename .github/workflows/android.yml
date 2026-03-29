@@ -7,9 +7,24 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Build with Buildozer
-        # මෙහි අකුරු නිවැරදිව (Case-sensitive) තිබීම අත්‍යවශ්‍යයි
-        uses: Kivy/buildozer-action@master
+      - name: Set up Python
+        uses: actions/setup-python@v2
         with:
-          workdir: .
-          buildozer_config: buildozer.spec
+          python-version: '3.12'
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y git zip unzip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
+          pip install --upgrade pip
+          pip install buildozer cython kivy
+
+      - name: Build with Buildozer
+        run: |
+          buildozer android debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v2
+        with:
+          name: package
+          path: bin/*.apk
